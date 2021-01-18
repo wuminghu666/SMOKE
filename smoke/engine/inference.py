@@ -15,6 +15,7 @@ def compute_on_dataset(model, data_loader, device, timer=None):
     for _, batch in enumerate(tqdm(data_loader)):
         images, targets, image_ids = batch["images"], batch["targets"], batch["img_ids"]
         images = images.to(device)
+        # import pdb; pdb.set_trace()
         with torch.no_grad():
             if timer:
                 timer.tic()

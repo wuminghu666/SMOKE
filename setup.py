@@ -13,7 +13,7 @@ from setuptools import find_packages
 from setuptools import setup
 
 requirements = ["torch", "torchvision"]
-
+include_dir = [os.path.realpath('../include'), '/usr/local/cuda/include/']
 
 def get_extensions():
     this_dir = os.path.dirname(os.path.abspath(__file__))
@@ -44,7 +44,8 @@ def get_extensions():
 
     sources = [os.path.join(extensions_dir, s) for s in sources]
 
-    include_dirs = [extensions_dir]
+    # include_dirs = [extensions_dir]
+    include_dirs=include_dir
 
     ext_modules = [
         extension(

@@ -1,6 +1,7 @@
 import datetime
 import logging
 import time
+from tqdm import tqdm
 
 import torch
 import torch.distributed as dist
@@ -54,62 +55,70 @@ def do_train(
     model.train()
     start_training_time = time.time()
     end = time.time()
+    start_epoch = 0
+    max_epochs=80
+    # import pdb; pdb.set_trace()
+    iteration=start_iter
+    max_iter=(max_epochs-start_epoch)*(int(5000/data_loader.batch_sampler.batch_size))
+    for curr_epoch in range(start_epoch, max_epochs):
+        # for batch_id, batch in enumerate(tqdm(data_loader)):
+        for batch_id, batch in enumerate(data_loader):
+            data_time = time.time() - end
+            iteration += 1
+            arguments["iteration"] = iteration
 
-    for data, iteration in zip(data_loader, range(start_iter, max_iter)):
-        data_time = time.time() - end
-        iteration += 1
-        arguments["iteration"] = iteration
+            images = batch["images"].to(device)
+            targets = [target.to(device) for target in batch["targets"]]
+            # import pdb; pdb.set_trace()
 
-        images = data["images"].to(device)
-        targets = [target.to(device) for target in data["targets"]]
+            loss_dict = model(images, targets)
 
-        loss_dict = model(images, targets)
+            losses = sum(loss for loss in loss_dict.values())
 
-        losses = sum(loss for loss in loss_dict.values())
+            # reduce losses over all GPUs for logging purposes
+            loss_dict_reduced = reduce_loss_dict(loss_dict)
+            losses_reduced = sum(loss for loss in loss_dict_reduced.values())
+            meters.update(loss=losses_reduced, **loss_dict_reduced)
 
-        # reduce losses over all GPUs for logging purposes
-        loss_dict_reduced = reduce_loss_dict(loss_dict)
-        losses_reduced = sum(loss for loss in loss_dict_reduced.values())
-        meters.update(loss=losses_reduced, **loss_dict_reduced)
+            optimizer.zero_grad()
+            losses.backward()
+            optimizer.step()
+            scheduler.step()
 
-        optimizer.zero_grad()
-        losses.backward()
-        optimizer.step()
-        scheduler.step()
+            batch_time = time.time() - end
+            end = time.time()
+            meters.update(time=batch_time, data=data_time)
 
-        batch_time = time.time() - end
-        end = time.time()
-        meters.update(time=batch_time, data=data_time)
+            eta_seconds = meters.time.global_avg * (max_iter - iteration)
+            eta_string = str(datetime.timedelta(seconds=int(eta_seconds)))
 
-        eta_seconds = meters.time.global_avg * (max_iter - iteration)
-        eta_string = str(datetime.timedelta(seconds=int(eta_seconds)))
-
-        if iteration % 10 == 0 or iteration == max_iter:
-            logger.info(
-                meters.delimiter.join(
-                    [
-                        "eta: {eta}",
-                        "iter: {iter}",
-                        "{meters}",
-                        "lr: {lr:.8f}",
-                        "max men: {memory:.0f}",
-                    ]
-                ).format(
-                    eta=eta_string,
-                    iter=iteration,
-                    meters=str(meters),
-                    lr=optimizer.param_groups[0]["lr"],
-                    memory=torch.cuda.max_memory_allocated() / 1024.0 / 1024.0
+            if iteration % 10 == 0 or iteration == max_iter:
+                logger.info(
+                    meters.delimiter.join(
+                        [
+                            "epoch {epoch}",
+                            "iteration {iteration} "
+                            "eta: {eta}",
+                            "{meters}",
+                            "lr: {lr:.8f}",
+                        ]
+                    ).format(
+                        epoch=curr_epoch,
+                        iteration=iteration,
+                        eta=eta_string,
+                        meters=str(meters),
+                        lr=optimizer.param_groups[0]["lr"]
+                    )
                 )
-            )
-        # fixme: do we need checkpoint_period here
-        if iteration in cfg.SOLVER.STEPS:
-            checkpointer.save("model_{:07d}".format(iteration), **arguments)
-        if iteration == max_iter:
-            checkpointer.save("model_final", **arguments)
-        # todo: add evaluations here
-        # if iteration % evaluate_period == 0:
-        # test_net.main()
+            # fixme: do we need checkpoint_period here
+            # if iteration in cfg.SOLVER.STEPS:
+            if iteration%5000==0:
+                checkpointer.save("model_{:07d}".format(iteration), **arguments)
+            if iteration == max_iter:
+                checkpointer.save("model_final", **arguments)
+            # todo: add evaluations here
+            # if iteration % evaluate_period == 0:
+            # test_net.main()
 
     total_training_time = time.time() - start_training_time
     total_time_str = str(datetime.timedelta(seconds=total_training_time))

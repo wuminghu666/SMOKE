@@ -45,14 +45,14 @@ def do_kitti_detection_evaluation(dataset,
 
     logger.info("Evaluate on KITTI dataset")
     output_dir = os.path.abspath(output_folder)
-    os.chdir('../smoke/data/datasets/evaluation/kitti/kitti_eval')
-    label_dir = getattr(dataset, 'label_dir')
+    os.chdir('/home/wuminghu/3D_vision/SMOKE/smoke/data/datasets/evaluation/kitti/kitti_eval')
+    label_dir =os.path.join("/home/wuminghu/3D_vision/SMOKE",getattr(dataset, 'label_dir'))
     if not os.path.isfile('evaluate_object_3d_offline'):
         subprocess.Popen('g++ -O3 -DNDEBUG -o evaluate_object_3d_offline evaluate_object_3d_offline.cpp', shell=True)
     command = "./evaluate_object_3d_offline {} {}".format(label_dir, output_dir)
     output = subprocess.check_output(command, shell=True, universal_newlines=True).strip()
     logger.info(output)
-    os.chdir('../tools')
+    os.chdir('/home/wuminghu/3D_vision/SMOKE/tools')
 
 
 def generate_kitti_3d_detection(prediction, predict_txt):

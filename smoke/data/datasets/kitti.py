@@ -18,14 +18,13 @@ from smoke.structures.params_3d import ParamsList
 
 TYPE_ID_CONVERSION = {
     'Car': 0,
-    'Cyclist': 1,
-    'Pedestrian': 2,
 }
 
 
 class KITTIDataset(Dataset):
     def __init__(self, cfg, root, is_train=True, transforms=None):
         super(KITTIDataset, self).__init__()
+        root=os.path.join(root,'cam7')
         self.root = root
         self.image_dir = os.path.join(root, "image_2")
         self.label_dir = os.path.join(root, "label_2")
@@ -61,10 +60,19 @@ class KITTIDataset(Dataset):
         self.shift_scale = cfg.INPUT.SHIFT_SCALE_TRAIN
         self.num_classes = len(self.classes)
 
-        self.input_width = cfg.INPUT.WIDTH_TRAIN
-        self.input_height = cfg.INPUT.HEIGHT_TRAIN
+############################################check
+        img_path_size = os.path.join(self.image_dir, self.image_files[0])
+        self.input_width,self.input_height = np.array([i for i in (Image.open(img_path_size)).size], dtype=np.int32)
+        if self.input_width%16!=0:
+            self.input_width=self.input_width-self.input_width%16+16
+        if self.input_height%16!=0:
+            self.input_height=self.input_height-self.input_height%16+16
+        print(self.input_width,self.input_height)
+        # self.input_width = cfg.INPUT.WIDTH_TRAIN
+        # self.input_height = cfg.INPUT.HEIGHT_TRAIN
         self.output_width = self.input_width // cfg.MODEL.BACKBONE.DOWN_RATIO
         self.output_height = self.input_height // cfg.MODEL.BACKBONE.DOWN_RATIO
+############################################check
         self.max_objs = cfg.DATASETS.MAX_OBJECTS
 
         self.logger = logging.getLogger(__name__)
@@ -144,7 +152,7 @@ class KITTIDataset(Dataset):
         rotys = np.zeros([self.max_objs], dtype=np.float32)
         reg_mask = np.zeros([self.max_objs], dtype=np.uint8)
         flip_mask = np.zeros([self.max_objs], dtype=np.uint8)
-
+        
         for i, a in enumerate(anns):
             a = a.copy()
             cls = a["label"]
@@ -155,9 +163,7 @@ class KITTIDataset(Dataset):
                 locs[0] *= -1
                 rot_y *= -1
 
-            point, box2d, box3d = encode_label(
-                K, rot_y, a["dimensions"], locs
-            )
+            point, box2d, box3d = encode_label( K, rot_y, a["dimensions"], locs)
             point = affine_transform(point, trans_mat)
             box2d[:2] = affine_transform(box2d[:2], trans_mat)
             box2d[2:] = affine_transform(box2d[2:], trans_mat)
@@ -225,13 +231,13 @@ class KITTIDataset(Dataset):
                         })
 
         # get camera intrinsic matrix K
-        with open(os.path.join(self.calib_dir, file_name), 'r') as csv_file:
+        with open(os.path.join(self.calib_dir, "%.6d.txt"%(0)), 'r') as csv_file:
             reader = csv.reader(csv_file, delimiter=' ')
             for line, row in enumerate(reader):
                 if row[0] == 'P2:':
                     K = row[1:]
                     K = [float(i) for i in K]
-                    K = np.array(K, dtype=np.float32).reshape(3, 4)
+                    K = np.array(K, dtype=np.float32).reshape(3, 3)
                     K = K[:3, :3]
                     break
 

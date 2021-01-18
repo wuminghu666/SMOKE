@@ -16,6 +16,7 @@ def run_test(cfg, model):
             mkdir(output_folder)
             output_folders[idx] = output_folder
     data_loaders_val = build_test_loader(cfg)
+    # import pdb; pdb.set_trace()
     for output_folder, dataset_name, data_loader_val in zip(output_folders, dataset_names, data_loaders_val):
         inference(
             model,
